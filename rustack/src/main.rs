@@ -1,16 +1,12 @@
 fn main() {
-    let mut stack = vec![];
-
-    stack.push(42);
-    stack.push(36);
-
-    add(&mut stack);
-
-    stack.push(22);
-
-    add(&mut stack);
-
-    println!("stack: {stack:?}");
+    // 標準入力の結果を行ごとに取得し、空白区切りで取得
+    for line in std::io::stdin().lines() {
+        if let Ok(line) = line {
+            // 空白区切り
+            let words: Vec<_> = line.split(" ").collect();
+            println!("Line: {words:?}");
+        }
+    }
 }
 
 /// 加算演算
