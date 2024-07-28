@@ -20,34 +20,45 @@ impl<'src> Value<'src> {
 fn main() {
 
     // 標準入力の結果を行ごとに取得し、空白区切りで取得
-    for line in std::io::stdin().lines() {
-        let mut stack = vec![];
-        if let Ok(line) = line {
-            // 空白区切り
-            let input: Vec<_> = line.split(" ").collect();
-            let mut words = &input[..];
-            
-            // 文字列からパースし、数値ならスタックへPush
-            // そうでないなら(四則演算記号)match構文へ
-            while let Some((&word, mut rest)) = words.split_first() {
-                if word == "{" {
-                    let value;
-                    (value, rest) = parse_block(rest);
-                    stack.push(value);
-                } else {
-                    match word {
-                        "+" => add(&mut stack),
-                        "-" => sub(&mut stack),
-                        "*" => mul(&mut stack),
-                        "/" => div(&mut stack),
-                        _ => panic!("{word:?} could not be parsed"),
-                    }
-                }
-                words = rest;
-            }
-            println!("Stack: {stack:?}");
-        }
+    for line in std::io::stdin().lines().flatten() {
+        parse(&line);
     }
+}
+
+/// 標準入力結果をパースする
+fn parse<'a>(line: &'a str) -> Vec<Value> {
+    let mut stack = vec![];
+    let input: Vec<_> = line.split(" ").collect();
+    let mut words = &input[..];
+
+    // 文字列からパースし、数値ならスタックへPush
+    // そうでないなら(四則演算記号)match構文へ
+    while let Some((&word, mut rest)) = words.split_first() {
+        if word.is_empty() {
+            break;
+        }
+
+        if word == "{" {
+            let value;
+            (value, rest) = parse_block(rest);
+            stack.push(value);
+        } else if let Ok(parsed) = word.parse::<i32>() {
+            stack.push(Value::Num(parsed));
+        } else {
+            match word {
+                "+" => add(&mut stack),
+                "-" => sub(&mut stack),
+                "*" => mul(&mut stack),
+                "/" => div(&mut stack),
+                _ => panic!("{word:?} could not be parsed"),
+            }
+        }
+        words = rest;
+    }
+
+    println!("Stack: {stack:?}");
+
+    stack
 }
 
 /// 
@@ -149,4 +160,16 @@ fn div(stack: &mut Vec<Value>) {
     let lhs = stack.pop().unwrap().as_num();
     let rhs = stack.pop().unwrap().as_num();
     stack.push(Value::Num(lhs + rhs));
+}
+
+#[cfg(test)]
+mod test {
+    use super::{parse, Value::*};
+    #[test]
+    fn test_group() {
+        assert_eq!(
+            parse("1 2 + { 3 4 }"),
+            vec![Num(3), Block(vec![Num(3), Num(4)])]
+        );
+    }
 }
