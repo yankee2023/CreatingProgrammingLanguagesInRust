@@ -1,16 +1,39 @@
+#[derive(Debug, PartialEq, Eq)]
+enum Value<'src> {
+    Num(i32),                   // スタック上にPushされた値
+    Op(&'src str),              // 演算子
+    Block(Vec<Value<'src>>),    // ネストされたブロック
+}
+
+impl<'src> Value<'src> {
+    /// i32へのキャスト
+    /// 
+    /// * `self` 自身
+    fn as_num(&self) -> i32 {
+        match self {
+            Self::Num(val) => *val,
+            _ => panic!("Value is not a number."),
+        }
+    }
+}
+
 fn main() {
+
     // 標準入力の結果を行ごとに取得し、空白区切りで取得
     for line in std::io::stdin().lines() {
         let mut stack = vec![];
         if let Ok(line) = line {
             // 空白区切り
-            let words: Vec<_> = line.split(" ").collect();
+            let input: Vec<_> = line.split(" ").collect();
+            let mut words = &input[..];
             
             // 文字列からパースし、数値ならスタックへPush
             // そうでないなら(四則演算記号)match構文へ
-            for word in words {
-                if let Ok(parsed) = word.parse::<i32>() {
-                    stack.push(parsed);
+            while let Some((&word, mut rest)) = words.split_first() {
+                if word == "{" {
+                    let value;
+                    (value, rest) = parse_block(rest);
+                    stack.push(value);
                 } else {
                     match word {
                         "+" => add(&mut stack),
@@ -20,10 +43,42 @@ fn main() {
                         _ => panic!("{word:?} could not be parsed"),
                     }
                 }
+                words = rest;
             }
             println!("Stack: {stack:?}");
         }
     }
+}
+
+/// 
+/// * `'src` ソース文字列の生存期間
+/// * `'a` 引数に渡されているスライスのライフタイム
+fn parse_block<'src, 'a>(
+    input: &'a [&'src str],
+) -> (Value<'src>, &'a [&'src str]) {
+    let mut tokens = vec![];
+    let mut words = input;
+
+    while let Some((&word, mut rest)) = words.split_first() {
+        if word.is_empty() {
+            break;
+        }
+
+        if word == "{" {
+            let value;
+            (value, rest) = parse_block(rest);
+            tokens.push(value);
+        } else if word == "}" {
+            return (Value::Block(tokens), rest);
+        } else if let Ok(value) = word.parse::<i32>() {
+            tokens.push(Value::Num(value));
+        } else {
+            tokens.push(Value::Op(word));
+        }
+        words = rest;
+    }
+
+    (Value::Block(tokens), words)
 }
 
 /// 加算演算
@@ -37,12 +92,12 @@ fn main() {
 /// 
 /// assert_eq!(6, add(&mut stack));
 ///  ```
-fn add(stack: &mut Vec<i32>) {
+fn add(stack: &mut Vec<Value>) {
     // unwrapは値がOKを前提に取り出すため、
     // NoneやErrの場合panic!マクロが呼ばれてクラッシュする
-    let lhs = stack.pop().unwrap();
-    let rhs = stack.pop().unwrap();
-    stack.push(lhs + rhs);
+    let lhs = stack.pop().unwrap().as_num();
+    let rhs = stack.pop().unwrap().as_num();
+    stack.push(Value::Num(lhs + rhs));
 }
 
 /// 減算演算
@@ -56,10 +111,10 @@ fn add(stack: &mut Vec<i32>) {
 /// 
 /// assert_eq!(1, sub(&mut sub));
 /// ```
-fn sub(stack: &mut Vec<i32>) {
-    let lhs = stack.pop().unwrap();
-    let rhs = stack.pop().unwrap();
-    stack.push(lhs - rhs);
+fn sub(stack: &mut Vec<Value>) {
+    let lhs = stack.pop().unwrap().as_num();
+    let rhs = stack.pop().unwrap().as_num();
+    stack.push(Value::Num(lhs + rhs));
 }
 
 /// 乗算演算
@@ -73,10 +128,10 @@ fn sub(stack: &mut Vec<i32>) {
 /// 
 /// assert_eq!(6, sub(&mut mul));
 /// ```
-fn mul(stack: &mut Vec<i32>) {
-    let lhs = stack.pop().unwrap();
-    let rhs = stack.pop().unwrap();
-    stack.push(lhs * rhs);
+fn mul(stack: &mut Vec<Value>) {
+    let lhs = stack.pop().unwrap().as_num();
+    let rhs = stack.pop().unwrap().as_num();
+    stack.push(Value::Num(lhs + rhs));
 }
 
 /// 除算演算
@@ -90,11 +145,8 @@ fn mul(stack: &mut Vec<i32>) {
 /// 
 /// assert_eq!(3, div(&mut sub));
 /// ```
-fn div(stack: &mut Vec<i32>) {
-    let lhs = stack.pop().unwrap();
-    let rhs = stack.pop().unwrap();
-    if rhs == 0 {
-        panic!("Divided by zero.");
-    }
-    stack.push(lhs / rhs);
+fn div(stack: &mut Vec<Value>) {
+    let lhs = stack.pop().unwrap().as_num();
+    let rhs = stack.pop().unwrap().as_num();
+    stack.push(Value::Num(lhs + rhs));
 }
